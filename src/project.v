@@ -5,60 +5,82 @@
 
 `default_nettype none
 
-module tt_um_koggestone_adder4 (
-    input  wire [7:0] ui_in,    // Dedicated inputs
-    output wire [7:0] uo_out,   // Dedicated outputs
-    input  wire [7:0] uio_in,   // IOs: Input path
-    output wire [7:0] uio_out,  // IOs: Output path
-    output wire [7:0] uio_oe,   // IOs: Enable path (active high: 0=input, 1=output)
-    input  wire       ena,      // always 1 when the design is powered, so you can ignore it
-    input  wire       clk,      // clock
-    input  wire       rst_n     // reset_n - low to reset
-);
 
-  wire [3:0] a, b;
-  wire [3:0] sum;
-  wire carry_out;
+// Full Adder
+module FA(output sum, cout, input a, b, cin);
+  wire w0, w1, w2;
   
-  assign a = ui_in[3:0];
-  assign b = ui_in[7:4];
-   
+  xor  (w0, a, b);
+  xor  (sum, w0, cin);
+  
+  and  (w1, w0, cin);
+  and  (w2, a, b);
+  or  (cout, w1, w2);
+endmodule
 
-  wire [3:0] p; // Propagate
-  wire [3:0] g; // Generate
-  wire [3:0] c; // Carry
 
-  // Precompute generate and propagate signals
-  assign p = a ^ b; // Propagate
-  assign g = a & b; // Generate
+// Ripple Carry Adder with cin - 4 bits
+module RCA4(output [3:0] sum, output cout, input [3:0] a, b, input cin);
+  
+  wire [3:1] c;
+  
+  FA fa0(sum[0], c[1], a[0], b[0], cin);
+  FA fa[2:1](sum[2:1], c[3:2], a[2:1], b[2:1], c[2:1]);
+  FA fa3(sum[3], cout, a[3], b[3], c[3]);
+  
+endmodule
 
-  // Stage 1: Compute generate signals for neighbor 1-bit pairs
-  wire g1_1, g1_2, g1_3;
-  wire p1_1, p1_2, p1_3; 
-  assign g1_1 = g[1] | (p[1] & g[0]);   // Combine 1st and 0th bits
-  assign g1_2 = g[2] | (p[2] & g[1]);   // Combine 2nd and 1st bits
-  assign p1_2 = p[2] & p[1];	
-  assign g1_3 = g[3] | (p[3] & g[2]);   // Combine 3rd and 2nd bits
-  assign p1_3 = p[3] & p[2];
+module MUX2to1_w1(output y, input i0, i1, s);
 
-  // Stage 2: Compute generate signals for 2-bit groups
-  wire g2_2, g2_3;
-  assign g2_2 = g1_2 | (p1_2 & g[0]);   // Combine 2-bit group (2nd and 0th bits)
-  assign g2_3 = g1_3 | (p1_3 & g1_1);   // Combine 2-bit group (3rd and 1st bits)
+  wire e0, e1;
+  wire sn;
+  not (sn, s);
+  
+  and (e0, i0, sn);
+  and (e1, i1, s);
+  
+  or (y, e0, e1);
+  
+endmodule
 
-  // Compute final carry signals
-  assign c[0] = 0;                      // No carry into the first bit
-  assign c[1] = g[0];                   // Carry for 1st bit
-  assign c[2] = g1_1;                   // Carry for 2nd bit
-  assign c[3] = g2_2;                   // Carry for 3rd bit
-  assign carry_out = g2_3;              // Carry-out
+module MUX2to1_w4(output [3:0] y, input [3:0] i0, i1, input s);
 
-  // Sum computation
-  assign sum = p ^ c;                               // XOR of propagate and carry
+  wire [3:0] e0, e1;
+  wire sn;
+  not (sn, s);
+  
+  and (e0[0], i0[0], sn);
+  and (e0[1], i0[1], sn);
+  and (e0[2], i0[2], sn);
+  and (e0[3], i0[3], sn);
+      
+  and (e1[0], i1[0], s);
+  and (e1[1], i1[1], s);
+  and (e1[2], i1[2], s);
+  and (e1[3], i1[3], s);
+  
+  or (y[0], e0[0], e1[0]);
+  or (y[1], e0[1], e1[1]);
+  or (y[2], e0[2], e1[2]);
+  or (y[3], e0[3], e1[3]);
+  
+endmodule
 
-  assign uo_out[3:0] = sum;
-  assign uo_out[4] = carry_out; 
-  assign uo_out[7:5] = 3'b000;
-  assign uio_out = 8'b00000000;
-  assign uio_oe = 8'b00000000;
+// Carry Select Adder - 8 bits
+module CSA8(output [7:0] sum, output cout, input [7:0] a, b);
+
+  wire [7:0] sum0, sum1;
+  wire c1;
+  wire cout0_0, cout0_1;
+  wire cout1_0, cout1_1;
+  RCA4 rca0_0(sum0[3:0], cout0_0, a[3:0], b[3:0], 1'b0);
+  RCA4 rca0_1(sum1[3:0], cout0_1, a[3:0], b[3:0], 1'b1);
+  MUX2to1_w4 mux0_sum(sum[3:0], sum0[3:0], sum1[3:0], 1'b0);
+  MUX2to1_w1 mux0_cout(c1, cout0_0, cout0_1, 1'b0);
+
+  RCA4 rca1_0(sum0[7:4], cout1_0, a[7:4], b[7:4], 1'b0);
+  RCA4 rca1_1(sum1[7:4], cout1_1, a[7:4], b[7:4], 1'b1);
+  MUX2to1_w4 mux1_sum(sum[7:4], sum0[7:4], sum1[7:4], c1);
+  MUX2to1_w1 mux1_cout(cout, cout1_0, cout1_1, c1);
+  
 endmodule
