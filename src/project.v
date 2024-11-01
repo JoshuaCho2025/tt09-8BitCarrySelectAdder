@@ -67,7 +67,7 @@ module MUX2to1_w4(output [3:0] y, input [3:0] i0, i1, input s);
 endmodule
 
 // Carry Select Adder - 8 bits
-module CSA8(output [7:0] sum, output cout, input [7:0] a, b);
+module tt_um_CSA8(output [7:0] sum, output cout, input [7:0] a, b);
 
   wire [7:0] sum0, sum1;
   wire c1;
