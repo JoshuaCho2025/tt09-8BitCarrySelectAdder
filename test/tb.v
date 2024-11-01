@@ -17,12 +17,12 @@ module tb ();
   reg clk;
   reg rst_n;
   reg ena;
-   reg [7:0] a,b;
-  reg [7:0] uio_in;
+   reg [7:0] a;
+   reg [7:0] b;
    wire [7:0] sum;
   wire cout;
   wire [2:0] uo_dum;
-  wire [7:0] uio_out;
+  wire filler = 7'b0000000;
   wire [7:0] uio_oe;
 `ifdef GL_TEST
   wire VPWR = 1'b1;
@@ -41,7 +41,7 @@ module tb ();
      .ui_in  ({a}),    // Dedicated inputs
      .uo_out (sum),   // Dedicated outputs
      .uio_in (b),   // IOs: Input path
-     .uio_out({cout, 7'b0000000}),  // IOs: Output path
+     .uio_out({filler, cout}),  // IOs: Output path
       .uio_oe (uio_oe),   // IOs: Enable path (active high: 0=input, 1=output)
       .ena    (ena),      // enable - goes high when design is selected
       .clk    (clk),      // clock
